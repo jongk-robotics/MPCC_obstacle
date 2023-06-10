@@ -21,9 +21,9 @@ BEGIN_ACADO;
     time0 = acado.MexInput;
     x0 = acado.MexInputVector;
     S  = acado.MexInputMatrix;
+    C  = acado.MexInputMatrix;
     
     DifferentialState x y z qw qx qy qz vx vy vz T th;          % Differential States:
-                                            
                                             
     Control vT wx wy wz vth;                   % Control: 
                                             

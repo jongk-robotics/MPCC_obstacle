@@ -1,0 +1,1 @@
+function coeff=fit_poly3(p)

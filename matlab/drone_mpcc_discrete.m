@@ -34,20 +34,22 @@ BEGIN_ACADO;
     drone_x = [p_(X);q_(X);v_(X);T_(X)];  
     drone_u = [vT_(U);w_(U)];
 
+    dt = 0.01;
+
+
     
     %% Differential Equation
-    f = acado.DifferentialEquation();       % Set the differential equation object
+    f = acado.DiscretizedDifferentialEquation(dt);      % Set the differential equation object
     
-    drone_dx = DroneEuler(drone_x, drone_u);
+    new_drone_x = DroneRK4(drone_x, drone_u, dt);
 
     for i = 1:length(drone_x)
-        f.add(dot(drone_x(i)) == drone_dx(i));    
+        f.add(next(drone_x(i)) == new_drone_x(i));    
     end
-    f.add(dot(th) == vth);
+    f.add(next(th) == th + dt*vth);
     
     
     %% Optimal Control Problem
-    dt = 0.01;
     N = 30;
 
     ocp = acado.OCP(0.0, dt*N, N);          % Set up the Optimal Control Problem (OCP)
@@ -71,7 +73,9 @@ BEGIN_ACADO;
     ocp.minimizeLSQLinearTerms(SlX, SlU);
     
     ocp.subjectTo( f );                     % Your OCP is always subject to your 
-                                            % differential equation    
+                                            % differential equation
+                                           
+    
     ocp.subjectTo( 0      <= T <= 15.0 ); 
     ocp.subjectTo( -5.0   <= vT <= 5.0 );
     ocp.subjectTo( -10.0  <= wx <= 10.0 );
