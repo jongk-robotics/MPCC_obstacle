@@ -9,15 +9,14 @@ function new_points = sample_points(points, sample_dist)
     
     sum_dist = 0.0;
 
-    new_points = []
-
-    for i = 1:(length(points) - 1)
+    new_points = [];
+    for i = 1:(size(points, 1) - 1)
         
         second = points(i+1,:);
 
         dist = norm(first - second);
         ori  = (second - first) / dist;
-
+        
         while (dist > sample_dist)
             new_points = [new_points;first, ori, sum_dist];
             first = ori*sample_dist + first;

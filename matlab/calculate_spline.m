@@ -10,7 +10,7 @@ function coeffs = calculate_spline(points, sample_distance)
          3*T2, 2*T, 1 0];
     coeffs = [];
 
-    for i = 1:(length(points) - 1)
+    for i = 1:(size(points) - 1)
         first = points(i,:);
         second = points(i+1,:);
 
