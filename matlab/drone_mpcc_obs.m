@@ -21,7 +21,27 @@ BEGIN_ACADO;
     time0 = acado.MexInput;
     x0 = acado.MexInputVector;
     S  = acado.MexInputMatrix;
-    C  = acado.MexInputMatrix;
+
+    cx3 = acado.MexInput;
+    cx2 = acado.MexInput;
+    cx1 = acado.MexInput;
+    cx0 = acado.MexInput;
+
+    cy3 = acado.MexInput;
+    cy2 = acado.MexInput;
+    cy1 = acado.MexInput;
+    cy0 = acado.MexInput;
+
+    cz3 = acado.MexInput;
+    cz2 = acado.MexInput;
+    cz1 = acado.MexInput;
+    cz0 = acado.MexInput;
+    th_bias = acado.MexInput;
+
+
+    C = [cx3, cx2, cx1, cx0;
+         cy3, cy2, cy1, cy0;
+         cz3, cz2, cz1, cz0];
     
     DifferentialState x y z qw qx qy qz vx vy vz T th;          % Differential States:
                                             
@@ -55,10 +75,13 @@ BEGIN_ACADO;
                                             
     SlX = zeros(length(X), 1);
     SlU = [0 0 0 0 -200];
-   
-    ref = straight_line(th_(X));   
-    pr  = ref(1:3);
-    tr  = ref(4:6);
+    
+    th1 = th - th_bias;
+    th2 = th1*th1;
+    th3 = th2*th1;
+    
+    pr = C*[th3; th2; th1; 1];
+    tr = C*[3*th2; 2*th1; 1; 0];
     
     error = cal_error(p_(X), pr, tr);
     el    = error(1:3);
@@ -110,12 +133,26 @@ END_ACADO;           % Always end with "END_ACADO".
 %%
 t = 0;
 X = [0.05,-0.05,0.05,1,0,0,0,0,0,0,9.81,0];
-ql = 10;
-qc = 100;
+ql = 10000;
+qc = 1000;
 qw = [0.001, 0.001, 0.001];
 S  = diag([ql, ql, ql, qc, qc, qc, qw]);
 dt = 0.01;
 sim_T  = 30;
+
+start_pos = [0, 0, 0];
+end_pos = [10, 10, 10];
+obs_list = [5,5,5,1];
+points = path_planning(start_pos, end_pos, obs_list)
+
+% theta=0:0.01:2*pi;
+% points=[cos(theta')-1, sin(theta'), zeros(length(theta), 1)];
+
+sample_dist = 0.5;
+new_points = sample_points(points, sample_dist);
+spline = calculate_spline(new_points, sample_dist);
+
+plot_path(new_points, spline, sample_dist)
 
 times = 0:dt:sim_T;
 states = zeros(length(times), length(X));
@@ -123,9 +160,31 @@ ref_pos = zeros(length(times), 3);
 lag_error = zeros(length(times), 1);
 con_error = zeros(length(times), 1);
 
+
+point_idx = 1;
+
 for i = 1:length(times)
+    if point_idx < size(new_points, 1)
+        point = new_points(point_idx, 1:3);
+        next_point = new_points(point_idx+1, 1:3);
+        v = check_inside(point', next_point', p_(X)');
+        if v > 1.0
+            point_idx = point_idx + 1;
+        end
+        if point_idx >= size(new_points, 1)
+            break
+        end
+    end
+
+    cx = spline(point_idx, 1:4);
+    cy = spline(point_idx, 5:8);
+    cz = spline(point_idx, 9:12);
+    C = [cx;cy;cz];
+
+    th_bias = sample_dist*(point_idx-1);
+
     tic
-    out = drone_mpcc_RUN(t, X, S);  
+    out = drone_mpcc_RUN(t, X, S, cx(1), cx(2), cx(3), cx(4), cy(1), cy(2), cy(3), cy(4), cz(1), cz(2), cz(3), cz(4), th_bias);  
     U   = out.U
     toc
     drone_x   = [p_(X),q_(X),v_(X),T_(X)];
@@ -137,10 +196,17 @@ for i = 1:length(times)
     t     = t + dt
     states(i, :) = X;
     
+    th1 = th_(X) - th_bias ;
+    th2 = th1*th1;
+    th3 = th2*th1;
+    
+    pr = C*[th3; th2; th1; 1];
+    tr = C*[3*th2; 2*th1; 1; 0];
+    
     reference = straight_line(X(end));
-    ref_pos(i, :) = reference(1:3);
+    ref_pos(i, :) = pr;
 
-    error = cal_error(p_(X)', reference(1:3), reference(4:6))
+    error = cal_error(p_(X)', pr, tr)
     lag_error(i,:) = norm(error(1:3));
     con_error(i,:) = norm(error(4:6));
 end
@@ -174,3 +240,7 @@ legend(["lag error" "contour error"])
 xlabel("time (s)")
 ylabel("error (m)")
 title("trakcing error")
+
+
+%% 
+save('result/states.mat','states');
